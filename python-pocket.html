@@ -1,0 +1,394 @@
+<meta charset="utf-8">
+<title>Pocket Python</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a single workbench — toolbar on top, editor left, console + stdin right; stacks on phones. */
+:root {
+  --bg: #eef1f4;
+  --panel: #ffffff;
+  --ink: #18222d;
+  --muted: #5c6b7a;
+  --line: #d5dde5;
+  --accent: #1f6f8b;
+  --accent-ink: #ffffff;
+  --gutter: #f5f7f9;
+  --err: #b42318;
+  --ok: #18794e;
+  --k: #8a3ffc; --s: #a3551b; --c: #6f7f8f; --n: #0b7a75; --b: #1f6f8b; --f: #9a2f6e;
+  --font-ui: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --font-code: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f151b; --panel: #161e26; --ink: #e3e9ef; --muted: #8fa0b0; --line: #26323d;
+  --accent: #5bb6d4; --accent-ink: #0b1a21; --gutter: #121920; --err: #ff8a7a; --ok: #6fd3a0;
+  --k: #c49bff; --s: #e7a46b; --c: #708090; --n: #5fd3c9; --b: #7cc6e0; --f: #f08cc0;
+  color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0f151b; --panel: #161e26; --ink: #e3e9ef; --muted: #8fa0b0; --line: #26323d;
+  --accent: #5bb6d4; --accent-ink: #0b1a21; --gutter: #121920; --err: #ff8a7a; --ok: #6fd3a0;
+  --k: #c49bff; --s: #e7a46b; --c: #708090; --n: #5fd3c9; --b: #7cc6e0; --f: #f08cc0;
+  color-scheme: dark; }
+
+html, body { height: 100%; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-ui); font-size: 15px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 14px; box-sizing: border-box;
+  display: flex; flex-direction: column; gap: 12px;
+}
+*, *::before, *::after { box-sizing: border-box; }
+
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.brand { display: flex; align-items: baseline; gap: 10px; margin-right: auto; }
+.brand h1 { font-size: 1.25rem; margin: 0; letter-spacing: -0.01em; }
+.brand h1 span { font-family: var(--font-code); font-weight: 600; color: var(--accent); }
+#status { font-size: 0.85rem; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
+#status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+#status.ready::before { background: var(--ok); }
+#status.busy::before { background: var(--accent); animation: pulse 1s infinite; }
+#status.fail::before { background: var(--err); }
+@keyframes pulse { 50% { opacity: .3; } }
+@media (prefers-reduced-motion: reduce) { #status.busy::before { animation: none; } }
+
+.tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+select, button {
+  font: inherit; font-size: 0.9rem; color: var(--ink); background: var(--panel);
+  border: 1px solid var(--line); border-radius: 6px; padding: 7px 12px; cursor: pointer;
+}
+button:hover, select:hover { border-color: var(--accent); }
+button:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#run { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 700; padding-inline: 18px; }
+#run:disabled { opacity: .5; cursor: wait; }
+
+main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 12px; }
+@media (max-width: 760px) { main { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(320px, 1fr) minmax(260px, auto); } body { height: auto; } }
+
+.pane { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; display: flex; flex-direction: column; min-height: 0; min-width: 0; overflow: hidden; }
+.pane-head { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 700; }
+.pane-head small { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.link-btn { border: none; background: none; padding: 2px 4px; color: var(--accent); font-size: 0.8rem; text-transform: none; letter-spacing: 0; }
+
+/* Editor: textarea laid exactly over a highlighted <pre> */
+.editor { flex: 1; min-height: 0; display: flex; overflow: auto; background: var(--panel); position: relative; }
+.gutter { flex: none; white-space: pre; padding: 12px 10px 12px 12px; text-align: right; color: var(--muted); background: var(--gutter); border-right: 1px solid var(--line); user-select: none; font-variant-numeric: tabular-nums; }
+.code-wrap { position: relative; flex: 1; min-width: max-content; }
+.gutter, #hl, #code { font-family: var(--font-code); font-size: 14px; line-height: 1.55; tab-size: 4; }
+#hl, #code { margin: 0; padding: 12px 14px; white-space: pre; border: 0; }
+#hl { pointer-events: none; color: var(--ink); min-height: 100%; }
+#code {
+  position: absolute; inset: 0; width: 100%; height: 100%; resize: none; overflow: hidden;
+  background: transparent; color: transparent; caret-color: var(--ink); outline: none;
+}
+#code::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); color: transparent; }
+.t-k { color: var(--k); font-weight: 600; } .t-s { color: var(--s); } .t-c { color: var(--c); font-style: italic; }
+.t-n { color: var(--n); } .t-b { color: var(--b); } .t-f { color: var(--f); }
+
+.right { display: flex; flex-direction: column; min-height: 0; min-width: 0; } .right .pane { flex: 1; }
+#out { flex: 1; margin: 0; padding: 12px 14px; overflow: auto; font-family: var(--font-code); font-size: 13.5px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; min-height: 160px; }
+#out .err { color: var(--err); }
+#out .sys { color: var(--muted); font-style: italic; }
+#out .placeholder { color: var(--muted); font-family: var(--font-ui); font-style: normal; }
+.in { color: var(--accent); font-weight: 600; }
+#stdin-line { display: inline-block; min-width: 1ch; font: inherit; font-weight: 600; color: var(--accent); white-space: pre-wrap; word-break: break-word; outline: none; caret-color: var(--accent); }
+
+footer { font-size: 0.8rem; color: var(--muted); }
+</style>
+
+<header>
+  <div class="brand"><h1>Pocket <span>Python</span></h1><span id="status">Loading interpreter…</span></div>
+  <div class="tools">
+    <button id="run" type="button" disabled>▶ Run</button>
+  </div>
+</header>
+
+<main>
+  <section class="pane" aria-label="Editor">
+    <div class="pane-head">main.py <small id="cursor">Ln 1, Col 1</small></div>
+    <div class="editor" id="editor">
+      <div class="gutter" id="gutter" aria-hidden="true">1</div>
+      <div class="code-wrap">
+        <pre id="hl" aria-hidden="true"></pre>
+        <textarea id="code" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" aria-label="Python code"></textarea>
+      </div>
+    </div>
+  </section>
+
+  <div class="right">
+    <section class="pane" aria-label="Output">
+      <div class="pane-head">Output <small id="timing"></small></div>
+      <pre id="out"><span class="placeholder">Press Run to see your program's output here.</span></pre>
+    </section>
+  </div>
+</main>
+<footer>Runs Python 3 entirely in your browser (Brython). When your program calls input(), type in the Output panel and press Enter.</footer>
+
+<script type="text/python" id="py_bridge">
+import sys, builtins, traceback, time
+from browser import window
+
+class _Stream:
+    def __init__(self, kind): self.kind = kind
+    def write(self, s):
+        window.pyEmit(str(s), self.kind)
+        return len(s)
+    def flush(self): pass
+
+sys.stdout = _Stream("out")
+sys.stderr = _Stream("err")
+import random
+
+TIME_LIMIT = 5  # seconds before a runaway program is stopped
+
+class _NeedInput(BaseException):
+    """Raised when the program asks for input the user hasn't typed yet."""
+
+class _ProgramTimeout(BaseException):
+    """Raised by the page when the program runs past TIME_LIMIT."""
+
+_answers = []
+
+def _input(prompt=""):
+    if prompt:
+        sys.stdout.write(str(prompt))
+    if not _answers:
+        stop = _NeedInput()
+        window.pyHalt(stop)  # keeps a bare `except:` from swallowing the pause
+        raise stop
+    line = _answers.pop(0)
+    window.pyEmit(line + "\n", "in")
+    return line
+
+def run(src, answers, seed):
+    # Replays the program from the top, feeding back answers typed so far.
+    global _answers
+    _answers = list(answers)
+    builtins.input = _input
+    random.seed(seed)
+    ns = {"__name__": "__main__", "input": _input}
+    t0 = time.perf_counter()
+    state = "done"
+    window.pyArm(_ProgramTimeout(), TIME_LIMIT)
+    try:
+        exec(compile(src, "main.py", "exec"), ns)
+    except _NeedInput:
+        state = "input"
+    except _ProgramTimeout:
+        state = "error"
+        tb = sys.exc_info()[2]
+        lines = [f.lineno for f in traceback.extract_tb(tb) if f.filename == "main.py"]
+        where = f" (it was on line {lines[-1]})" if lines else ""
+        window.pyEmit(
+            f"\nStopped: your program ran longer than {TIME_LIMIT} seconds{where}.\n"
+            "Check for a loop that never ends, such as a while loop whose condition never becomes False.\n",
+            "err")
+    except SystemExit:
+        pass
+    except BaseException:
+        state = "error"
+        etype, err, tb = sys.exc_info()
+        traceback.print_exception(etype, err, tb.tb_next if tb else None)
+    finally:
+        window.pyDisarm()
+    return [state, (time.perf_counter() - t0) * 1000]
+
+window.pyRun = run
+window.pyReady()
+</script>
+
+<script src="https://cdn.jsdelivr.net/npm/brython@3.12.0/brython.min.js"></script>
+<script src="https://cdn.jsdelivr.net/npm/brython@3.12.0/brython_stdlib.js"></script>
+<script>
+// Time limit and input pause: Brython calls $B.set_lineno as each line of Python runs.
+// For the student's code (compiled as "main.py") we check the clock there and, once a
+// stop is pending, keep raising it so even a bare `except:` can't trap the program.
+(() => {
+  const B = window.__BRYTHON__;
+  if (!B || typeof B.set_lineno !== 'function') return;
+  let deadline = Infinity, timeoutExc = null, halt = null, n = 0;
+  window.pyArm = (exc, secs) => { timeoutExc = exc; halt = null; n = 0; deadline = performance.now() + secs * 1000; };
+  window.pyHalt = exc => { halt = exc; };
+  window.pyDisarm = () => { deadline = Infinity; halt = null; timeoutExc = null; };
+  const orig = B.set_lineno;
+  B.set_lineno = function (frame, lineno) {
+    if (frame && frame.__file__ === 'main.py') {
+      if (halt) throw halt;
+      if ((++n & 1023) === 0 && performance.now() > deadline) { halt = timeoutExc; throw halt; }
+    }
+    return orig(frame, lineno);
+  };
+})();
+
+(() => {
+  const $ = id => document.getElementById(id);
+  const code = $('code'), hl = $('hl'), gutter = $('gutter'), out = $('out'),
+        runBtn = $('run'), status = $('status'), timing = $('timing');
+
+
+  // ---------- highlighting ----------
+  const KW = new Set('False None True and as assert async await break class continue def del elif else except finally for from global if import in is lambda nonlocal not or pass raise return try while with yield match case'.split(' '));
+  const BI = new Set('print input len range int float str list dict set tuple bool sum min max abs round sorted enumerate zip map filter open type isinstance super self any all reversed format repr Exception ValueError TypeError KeyError IndexError'.split(' '));
+  const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const TOKEN = /([rRbBfFuU]{0,2}"""[\s\S]*?(?:"""|$)|[rRbBfFuU]{0,2}'''[\s\S]*?(?:'''|$)|[rRbBfFuU]{0,2}"(?:\\.|[^"\\\n])*"?|[rRbBfFuU]{0,2}'(?:\\.|[^'\\\n])*'?)|(#[^\n]*)|\b(\d[\d_]*\.?[\d_]*(?:e[+-]?\d+)?j?|0x[\da-fA-F_]+)\b|([A-Za-z_]\w*)/g;
+  function highlight(src) {
+    let html = '', last = 0, prev = '';
+    src.replace(TOKEN, (m, str, com, num, word, idx) => {
+      html += esc(src.slice(last, idx)); last = idx + m.length;
+      let cls = '';
+      if (str) cls = 't-s'; else if (com) cls = 't-c'; else if (num) cls = 't-n';
+      else if (KW.has(word)) cls = 't-k';
+      else if (prev === 'def' || prev === 'class') cls = 't-f';
+      else if (BI.has(word)) cls = 't-b';
+      if (word) prev = word; else if (!com) prev = '';
+      html += cls ? `<span class="${cls}">${esc(m)}</span>` : esc(m);
+      return m;
+    });
+    return html + esc(src.slice(last)) + '\n';
+  }
+  function refresh() {
+    hl.innerHTML = highlight(code.value);
+    const n = code.value.split('\n').length;
+    let g = ''; for (let i = 1; i <= n; i++) g += i + '\n';
+    gutter.textContent = g;
+    code.style.height = hl.offsetHeight + 'px';
+    code.style.width = hl.offsetWidth + 'px';
+  }
+  function updateCursor() {
+    const before = code.value.slice(0, code.selectionStart).split('\n');
+    $('cursor').textContent = `Ln ${before.length}, Col ${before[before.length - 1].length + 1}`;
+  }
+
+  // ---------- editing keys ----------
+  function replaceRange(start, end, text, selStart, selEnd) {
+    code.setRangeText(text, start, end, 'end');
+    if (selStart !== undefined) code.setSelectionRange(selStart, selEnd ?? selStart);
+    refresh(); updateCursor();
+  }
+  code.addEventListener('keydown', e => {
+    const v = code.value, s = code.selectionStart, en = code.selectionEnd;
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); run(); return; }
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const ls = v.lastIndexOf('\n', s - 1) + 1;
+      if (s === en && !e.shiftKey) { replaceRange(s, en, '    '); return; }
+      const le = v.indexOf('\n', en - (en > s && v[en - 1] === '\n' ? 1 : 0)); const blockEnd = le === -1 ? v.length : le;
+      const lines = v.slice(ls, blockEnd).split('\n');
+      const changed = lines.map(l => e.shiftKey ? l.replace(/^ {1,4}/, '') : '    ' + l).join('\n');
+      replaceRange(ls, blockEnd, changed, ls, ls + changed.length);
+      return;
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const ls = v.lastIndexOf('\n', s - 1) + 1;
+      const line = v.slice(ls, s);
+      let indent = line.match(/^\s*/)[0];
+      if (/:\s*(#.*)?$/.test(line)) indent += '    ';
+      replaceRange(s, en, '\n' + indent);
+      return;
+    }
+    if (e.key === 'Backspace' && s === en) {
+      const ls = v.lastIndexOf('\n', s - 1) + 1;
+      const before = v.slice(ls, s);
+      if (before.length && /^ +$/.test(before)) {
+        e.preventDefault();
+        const cut = before.length % 4 || 4;
+        replaceRange(s - cut, s, '');
+      }
+    }
+  });
+  code.addEventListener('input', () => { refresh(); updateCursor(); });
+  ['keyup', 'click', 'select'].forEach(ev => code.addEventListener(ev, updateCursor));
+
+
+  // ---------- output ----------
+  window.pyEmit = (text, kind) => {
+    if (out.querySelector('.placeholder')) out.textContent = '';
+    const last = out.lastChild;
+    if (last && last.nodeType === 1 && last.dataset.kind === kind) last.textContent += text;
+    else {
+      const span = document.createElement('span');
+      span.dataset.kind = kind; if (kind === 'err' || kind === 'in') span.className = kind;
+      span.textContent = text; out.append(span);
+    }
+    out.scrollTop = out.scrollHeight;
+  };
+  function setReady() { runBtn.disabled = false; status.className = 'ready'; status.textContent = 'Python ready'; }
+
+  // A run is a "session": the code snapshot, the answers typed so far, and a fixed random seed.
+  // When the program needs input it stops; after Enter it replays from the top with the answers.
+  let session = null;
+
+  function run() {
+    if (!window.pyRun || runBtn.disabled) return;
+    session = { src: code.value, answers: [], seed: Math.floor(Math.random() * 2 ** 31) };
+    out.innerHTML = ''; timing.textContent = '';
+    runBtn.disabled = true; status.className = 'busy'; status.textContent = 'Running…';
+    setTimeout(execute, 20); // let the UI paint before Python takes the thread
+  }
+
+  function execute() {
+    out.innerHTML = '';
+    let res;
+    try { res = window.pyRun(session.src, session.answers, session.seed); }
+    catch (err) { pyEmit(String(err) + '\n', 'err'); res = ['error', 0]; }
+    const state = res[0], ms = Number(res[1]);
+    runBtn.disabled = false;
+    if (state === 'input') {
+      status.className = 'busy'; status.textContent = 'Waiting for input…';
+      timing.textContent = 'Type a response and press Enter'; timing.style.color = 'var(--accent)';
+      askForInput();
+      return;
+    }
+    session = null;
+    if (!out.textContent) { const s = document.createElement('span'); s.className = 'sys'; s.textContent = '(no output)'; out.append(s); }
+    const ok = state === 'done';
+    timing.textContent = (ok ? 'Finished' : 'Stopped with an error') + ` in ${ms.toFixed(0)} ms`;
+    timing.style.color = ok ? 'var(--ok)' : 'var(--err)';
+    setReady();
+  }
+
+  function askForInput() {
+    // A plain editable line of text, not a form field, so browser autofill and
+    // password-manager popups leave it alone.
+    const box = document.createElement('span');
+    box.id = 'stdin-line';
+    try { box.contentEditable = 'plaintext-only'; } catch (e) {}
+    if (box.contentEditable !== 'plaintext-only') box.contentEditable = 'true';
+    box.spellcheck = false;
+    for (const [k, v] of Object.entries({ role: 'textbox', 'aria-label': 'Program input', autocorrect: 'off',
+      autocapitalize: 'off', 'data-gramm': 'false', 'data-gramm_editor': 'false', 'data-enable-grammarly': 'false',
+      'data-lpignore': 'true', 'data-1p-ignore': 'true', 'data-form-type': 'other' })) box.setAttribute(k, v);
+    box.addEventListener('paste', e => {
+      e.preventDefault();
+      const text = (e.clipboardData.getData('text/plain') || '').split(/\r?\n/)[0];
+      document.execCommand('insertText', false, text);
+    });
+    out.append(box);
+    out.scrollTop = out.scrollHeight;
+    box.focus({ preventScroll: true });
+    box.addEventListener('keydown', e => {
+      if (e.key !== 'Enter' || !session) return;
+      e.preventDefault();
+      session.answers.push(box.textContent.replace(/\n/g, ''));
+      execute();
+    });
+  }
+  out.addEventListener('click', () => { const b = $('stdin-line'); if (b && !getSelection().toString()) b.focus(); });
+  runBtn.addEventListener('click', run);
+
+  // ---------- boot ----------
+  code.value = '';
+  refresh();
+
+  window.pyReady = setReady;
+  window.addEventListener('load', () => {
+    if (typeof window.brython !== 'function') {
+      status.className = 'fail'; status.textContent = 'Interpreter failed to load. Check your connection and reload.';
+      return;
+    }
+    setTimeout(() => { if (!window.pyRun) { try { brython({ debug: 1, ids: ['py_bridge'] }); } catch (e) { status.className = 'fail'; status.textContent = 'Interpreter error: ' + e.message; } } }, 0);
+  });
+})();
+</script>

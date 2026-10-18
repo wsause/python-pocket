@@ -1,0 +1,413 @@
+<meta charset="utf-8">
+<title>Pocket Python Data</title>
+<meta name="claude:viewport-fit-sides" content="cover">
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="stylesheet" href="https://fonts.googleapis.com/css2?family=Atkinson+Hyperlegible:wght@400;700&family=JetBrains+Mono:wght@400;600&display=swap">
+<style>
+/* Layout: a single workbench — toolbar on top, editor left, console + stdin right; stacks on phones. */
+:root {
+  --bg: #eef1f4;
+  --panel: #ffffff;
+  --ink: #18222d;
+  --muted: #5c6b7a;
+  --line: #d5dde5;
+  --accent: #1f6f8b;
+  --accent-ink: #ffffff;
+  --gutter: #f5f7f9;
+  --err: #b42318;
+  --ok: #18794e;
+  --k: #8a3ffc; --s: #a3551b; --c: #6f7f8f; --n: #0b7a75; --b: #1f6f8b; --f: #9a2f6e;
+  --font-ui: "Atkinson Hyperlegible", "Segoe UI", system-ui, sans-serif;
+  --font-code: "JetBrains Mono", ui-monospace, "SF Mono", Menlo, Consolas, monospace;
+}
+@media (prefers-color-scheme: dark) { :root:not([data-theme="light"]) {
+  --bg: #0f151b; --panel: #161e26; --ink: #e3e9ef; --muted: #8fa0b0; --line: #26323d;
+  --accent: #5bb6d4; --accent-ink: #0b1a21; --gutter: #121920; --err: #ff8a7a; --ok: #6fd3a0;
+  --k: #c49bff; --s: #e7a46b; --c: #708090; --n: #5fd3c9; --b: #7cc6e0; --f: #f08cc0;
+  color-scheme: dark; } }
+:root[data-theme="dark"] {
+  --bg: #0f151b; --panel: #161e26; --ink: #e3e9ef; --muted: #8fa0b0; --line: #26323d;
+  --accent: #5bb6d4; --accent-ink: #0b1a21; --gutter: #121920; --err: #ff8a7a; --ok: #6fd3a0;
+  --k: #c49bff; --s: #e7a46b; --c: #708090; --n: #5fd3c9; --b: #7cc6e0; --f: #f08cc0;
+  color-scheme: dark; }
+
+html, body { height: 100%; }
+body {
+  background: var(--bg); color: var(--ink); font-family: var(--font-ui); font-size: 15px;
+  padding-left: max(16px, env(safe-area-inset-left, 0px));
+  padding-right: max(16px, env(safe-area-inset-right, 0px));
+  padding-block: 14px; box-sizing: border-box;
+  display: flex; flex-direction: column; gap: 12px;
+}
+*, *::before, *::after { box-sizing: border-box; }
+
+header { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 16px; }
+.brand { display: flex; align-items: baseline; gap: 10px; margin-right: auto; }
+.brand h1 { font-size: 1.25rem; margin: 0; letter-spacing: -0.01em; }
+.brand h1 span { font-family: var(--font-code); font-weight: 600; color: var(--accent); }
+#status { font-size: 0.85rem; color: var(--muted); display: inline-flex; align-items: center; gap: 6px; }
+#status::before { content: ""; width: 8px; height: 8px; border-radius: 50%; background: var(--muted); }
+#status.ready::before { background: var(--ok); }
+#status.busy::before { background: var(--accent); animation: pulse 1s infinite; }
+#status.fail::before { background: var(--err); }
+@keyframes pulse { 50% { opacity: .3; } }
+@media (prefers-reduced-motion: reduce) { #status.busy::before { animation: none; } }
+
+.tools { display: flex; flex-wrap: wrap; gap: 8px; align-items: center; }
+select, button {
+  font: inherit; font-size: 0.9rem; color: var(--ink); background: var(--panel);
+  border: 1px solid var(--line); border-radius: 6px; padding: 7px 12px; cursor: pointer;
+}
+button:hover, select:hover { border-color: var(--accent); }
+button:focus-visible, select:focus-visible, textarea:focus-visible { outline: 2px solid var(--accent); outline-offset: 2px; }
+#run { background: var(--accent); color: var(--accent-ink); border-color: var(--accent); font-weight: 700; padding-inline: 18px; }
+#run:disabled { opacity: .5; cursor: wait; }
+
+main { flex: 1; min-height: 0; display: grid; grid-template-columns: minmax(0, 1.25fr) minmax(0, 1fr); gap: 12px; }
+@media (max-width: 760px) { main { grid-template-columns: minmax(0, 1fr); grid-template-rows: minmax(320px, 1fr) minmax(260px, auto); } body { height: auto; } }
+
+.pane { background: var(--panel); border: 1px solid var(--line); border-radius: 8px; display: flex; flex-direction: column; min-height: 0; min-width: 0; overflow: hidden; }
+.pane-head { display: flex; justify-content: space-between; align-items: center; padding: 8px 12px; border-bottom: 1px solid var(--line); font-size: 0.78rem; text-transform: uppercase; letter-spacing: 0.08em; color: var(--muted); font-weight: 700; }
+.pane-head small { text-transform: none; letter-spacing: 0; font-weight: 400; }
+.link-btn { border: none; background: none; padding: 2px 4px; color: var(--accent); font-size: 0.8rem; text-transform: none; letter-spacing: 0; }
+
+/* Editor: textarea laid exactly over a highlighted <pre> */
+.editor { flex: 1; min-height: 0; display: flex; overflow: auto; background: var(--panel); position: relative; }
+.gutter { flex: none; white-space: pre; padding: 12px 10px 12px 12px; text-align: right; color: var(--muted); background: var(--gutter); border-right: 1px solid var(--line); user-select: none; font-variant-numeric: tabular-nums; }
+.code-wrap { position: relative; flex: 1; min-width: max-content; }
+.gutter, #hl, #code { font-family: var(--font-code); font-size: 14px; line-height: 1.55; tab-size: 4; }
+#hl, #code { margin: 0; padding: 12px 14px; white-space: pre; border: 0; }
+#hl { pointer-events: none; color: var(--ink); min-height: 100%; }
+#code {
+  position: absolute; inset: 0; width: 100%; height: 100%; resize: none; overflow: hidden;
+  background: transparent; color: transparent; caret-color: var(--ink); outline: none;
+}
+#code::selection { background: color-mix(in srgb, var(--accent) 30%, transparent); color: transparent; }
+.t-k { color: var(--k); font-weight: 600; } .t-s { color: var(--s); } .t-c { color: var(--c); font-style: italic; }
+.t-n { color: var(--n); } .t-b { color: var(--b); } .t-f { color: var(--f); }
+
+.right { display: flex; flex-direction: column; min-height: 0; min-width: 0; } .right .pane { flex: 1; }
+#out { flex: 1; margin: 0; padding: 12px 14px; overflow: auto; font-family: var(--font-code); font-size: 13.5px; line-height: 1.55; white-space: pre-wrap; word-break: break-word; min-height: 160px; }
+#out .err { color: var(--err); }
+#out .sys { color: var(--muted); font-style: italic; }
+#out .placeholder { color: var(--muted); font-family: var(--font-ui); font-style: normal; }
+.in { color: var(--accent); font-weight: 600; }
+#stdin-line { display: inline-block; min-width: 1ch; font: inherit; font-weight: 600; color: var(--accent); white-space: pre-wrap; word-break: break-word; outline: none; caret-color: var(--accent); }
+
+.badge { font-style: normal; font-family: var(--font-ui); font-size: 0.72rem; font-weight: 700; letter-spacing: 0.04em; color: var(--muted); border: 1px solid var(--line); border-radius: 999px; padding: 2px 8px; vertical-align: middle; margin-left: 4px; }
+.plot { display: block; white-space: normal; width: 100%; height: 380px; margin: 8px 0; background: #ffffff; border: 1px solid var(--line); border-radius: 6px; overflow: hidden; }
+.plot-missing { height: auto; padding: 10px 12px; color: var(--err); font-family: var(--font-ui); background: var(--panel); }
+footer { font-size: 0.8rem; color: var(--muted); }
+</style>
+
+<header>
+  <div class="brand"><h1>Pocket <span>Python</span> <em class="badge">pandas · Plotly</em></h1><span id="status">Loading Python…</span></div>
+  <div class="tools">
+    <button id="run" type="button" disabled>▶ Run</button>
+  </div>
+</header>
+
+<main>
+  <section class="pane" aria-label="Editor">
+    <div class="pane-head">main.py <small id="cursor">Ln 1, Col 1</small></div>
+    <div class="editor" id="editor">
+      <div class="gutter" id="gutter" aria-hidden="true">1</div>
+      <div class="code-wrap">
+        <pre id="hl" aria-hidden="true"></pre>
+        <textarea id="code" spellcheck="false" autocapitalize="off" autocomplete="off" autocorrect="off" aria-label="Python code"></textarea>
+      </div>
+    </div>
+  </section>
+
+  <div class="right">
+    <section class="pane" aria-label="Output">
+      <div class="pane-head">Output <small id="timing"></small></div>
+      <pre id="out"><span class="placeholder">Press Run to see your program's output here.</span></pre>
+    </section>
+  </div>
+</main>
+<footer>Runs Python 3 with pandas and Plotly in your browser (Pyodide). The first load downloads about 30&nbsp;MB and can take 10–20 seconds; after that it is cached. Programs stop after 5 seconds. When your program calls input(), type in the Output panel and press Enter.</footer>
+
+<script type="text/js-worker" id="worker-src">
+// Pocket Python (pandas edition) - Web Worker that hosts Pyodide.
+// Running Python here keeps the page responsive, and lets the page enforce a hard
+// time limit by terminating this worker and starting a fresh one.
+const PYODIDE_VERSIONS = ['0.27.7', '0.27.5', '0.26.4'];  // first one that downloads wins
+const PLOTLY_PACKAGE = 'plotly==5.24.1';                  // matches plotly.js 2.35 on the page
+const BRIDGE = "# Pocket Python (pandas edition) - runs inside Pyodide in a Web Worker.\n# Talks to the page by posting JSON strings with js.postMessage.\nimport sys, json, builtins, traceback, linecache, random\nimport js\n\nTIME_LIMIT = 5  # seconds; enforced by the page, which restarts this worker\n\n\ndef _post(**msg):\n    js.postMessage(json.dumps(msg))\n\n\nclass _Stream:\n    def __init__(self, kind):\n        self.kind = kind\n\n    def write(self, text):\n        text = str(text)\n        if text:\n            _post(type=\"out\", kind=self.kind, text=text)\n        return len(text)\n\n    def flush(self):\n        pass\n\n    def isatty(self):\n        return False\n\n\nsys.stdout = _Stream(\"out\")\nsys.stderr = _Stream(\"err\")\n\n\n# ---------- input(): stop, ask the page, replay with the answers ----------\nclass _NeedInput(BaseException):\n    \"\"\"Raised when the program asks for input the user hasn't typed yet.\"\"\"\n\n\n_answers = []\n\n\ndef _halt_tracer(frame, event, arg):\n    # Once a stop is pending, every new line of the student's code raises again,\n    # so a bare `except:` can't swallow the pause and keep looping.\n    if frame.f_code.co_filename != \"main.py\":\n        return None\n    if event == \"line\":\n        raise _NeedInput()\n    return _halt_tracer\n\n\ndef _halt():\n    sys.settrace(_halt_tracer)\n    f = sys._getframe(1)\n    while f is not None:\n        if f.f_code.co_filename == \"main.py\":\n            f.f_trace = _halt_tracer\n            f.f_trace_lines = True\n        f = f.f_back\n\n\ndef _input(prompt=\"\"):\n    if prompt:\n        sys.stdout.write(str(prompt))\n    if not _answers:\n        _halt()\n        raise _NeedInput()\n    line = _answers.pop(0)\n    _post(type=\"out\", kind=\"in\", text=line + \"\\n\")\n    return line\n\n\n# ---------- time.sleep: keep it from stalling the 5-second clock for long ----------\nimport time as _time\n_real_sleep = _time.sleep\n\n\ndef _sleep(seconds=0):\n    # Output can't appear mid-run anyway in many cases, so cap pauses at 0.1 s each.\n    _real_sleep(min(max(float(seconds), 0.0), 0.1))\n\n\n_time.sleep = _sleep\n\n\n# ---------- Plotly: fig.show() draws in the output panel ----------\ndef _patch_plotly():\n    try:\n        import plotly.io as pio\n        import plotly.basedatatypes as bdt\n    except Exception:\n        return\n\n    def _send(fig):\n        _post(type=\"plot\", fig=pio.to_json(fig, validate=False))\n\n    bdt.BaseFigure.show = lambda self, *a, **k: _send(self)\n    pio.show = lambda fig, *a, **k: _send(fig)\n\n\n_patch_plotly()\n\n\n# ---------- short tracebacks: only the student's lines and the final error ----------\ndef _print_error(etype, err, tb):\n    try:\n        te = traceback.TracebackException(etype, err, tb)\n        te.__cause__ = None\n        te.__context__ = None\n        te.__suppress_context__ = True\n        te.stack = traceback.StackSummary.from_list(\n            [f for f in te.stack if f.filename == \"main.py\"])\n        sys.stderr.write(\"\".join(te.format()))\n    except Exception:\n        traceback.print_exception(etype, err, tb)\n\n\n# ---------- run one program ----------\ndef run(src, answers, seed):\n    global _answers\n    _answers = [str(a) for a in answers]\n    sys.settrace(None)\n    builtins.input = _input\n    random.seed(seed)\n    try:\n        import numpy\n        numpy.random.seed(int(seed) % (2 ** 32))\n    except Exception:\n        pass\n    linecache.cache[\"main.py\"] = (len(src), None, src.splitlines(True), \"main.py\")\n    ns = {\"__name__\": \"__main__\", \"__builtins__\": builtins}\n    state = \"done\"\n    try:\n        code = compile(src, \"main.py\", \"exec\")\n        _post(type=\"started\")\n        exec(code, ns)\n    except _NeedInput:\n        state = \"input\"\n    except SystemExit:\n        pass\n    except BaseException:\n        state = \"error\"\n        _print_error(*sys.exc_info())\n    finally:\n        sys.settrace(None)\n        for f in (sys.stdout, sys.stderr):\n            f.flush()\n    return state\n";
+let py = null;
+const quiet = { messageCallback: () => {}, errorCallback: () => {} };
+
+async function boot() {
+  let base = null;
+  for (const v of PYODIDE_VERSIONS) {
+    const url = `https://cdn.jsdelivr.net/pyodide/v${v}/full/`;
+    try { importScripts(url + 'pyodide.js'); base = url; break; } catch (e) { /* try the next version */ }
+  }
+  if (!base) throw new Error('Could not download Python from cdn.jsdelivr.net. Check the internet connection, or ask whether this site is blocked.');
+  postMessage({ type: 'status', text: 'Loading Python…' });
+  py = await loadPyodide({ indexURL: base });
+  postMessage({ type: 'status', text: 'Loading pandas…' });
+  await py.loadPackage(['pandas', 'micropip'], quiet);
+  postMessage({ type: 'status', text: 'Loading Plotly…' });
+  try {
+    await py.pyimport('micropip').install(PLOTLY_PACKAGE);
+  } catch (e) {
+    postMessage({ type: 'warn', text: 'Plotly could not be loaded: ' + e.message });
+  }
+  py.runPython(BRIDGE);
+  postMessage({ type: 'ready', version: py.version });
+}
+
+self.onmessage = async (e) => {
+  const m = e.data;
+  if (!m || m.type !== 'run' || !py) return;
+  // Fetch any other packages the program imports (for example matplotlib or scipy).
+  try { await py.loadPackagesFromImports(m.src, quiet); } catch (err) { /* the import error will show when it runs */ }
+  let state = 'error';
+  try {
+    state = py.globals.get('run')(m.src, m.answers, m.seed);
+  } catch (err) {
+    postMessage({ type: 'out', kind: 'err', text: String(err && err.message || err) + '\n' });
+  }
+  postMessage({ type: 'done', state });
+};
+
+boot().catch(err => postMessage({ type: 'fail', text: String(err && err.message || err) }));
+
+</script>
+<script src="https://cdn.jsdelivr.net/npm/plotly.js-dist-min@2.35.2/plotly.min.js" async></script>
+<script>
+(() => {
+  const $ = id => document.getElementById(id);
+  const code = $('code'), hl = $('hl'), gutter = $('gutter'), out = $('out'),
+        runBtn = $('run'), status = $('status'), timing = $('timing');
+
+
+  // ---------- highlighting ----------
+  const KW = new Set('False None True and as assert async await break class continue def del elif else except finally for from global if import in is lambda nonlocal not or pass raise return try while with yield match case'.split(' '));
+  const BI = new Set('print input len range int float str list dict set tuple bool sum min max abs round sorted enumerate zip map filter open type isinstance super self any all reversed format repr Exception ValueError TypeError KeyError IndexError'.split(' '));
+  const esc = s => s.replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;');
+  const TOKEN = /([rRbBfFuU]{0,2}"""[\s\S]*?(?:"""|$)|[rRbBfFuU]{0,2}'''[\s\S]*?(?:'''|$)|[rRbBfFuU]{0,2}"(?:\\.|[^"\\\n])*"?|[rRbBfFuU]{0,2}'(?:\\.|[^'\\\n])*'?)|(#[^\n]*)|\b(\d[\d_]*\.?[\d_]*(?:e[+-]?\d+)?j?|0x[\da-fA-F_]+)\b|([A-Za-z_]\w*)/g;
+  function highlight(src) {
+    let html = '', last = 0, prev = '';
+    src.replace(TOKEN, (m, str, com, num, word, idx) => {
+      html += esc(src.slice(last, idx)); last = idx + m.length;
+      let cls = '';
+      if (str) cls = 't-s'; else if (com) cls = 't-c'; else if (num) cls = 't-n';
+      else if (KW.has(word)) cls = 't-k';
+      else if (prev === 'def' || prev === 'class') cls = 't-f';
+      else if (BI.has(word)) cls = 't-b';
+      if (word) prev = word; else if (!com) prev = '';
+      html += cls ? `<span class="${cls}">${esc(m)}</span>` : esc(m);
+      return m;
+    });
+    return html + esc(src.slice(last)) + '\n';
+  }
+  function refresh() {
+    hl.innerHTML = highlight(code.value);
+    const n = code.value.split('\n').length;
+    let g = ''; for (let i = 1; i <= n; i++) g += i + '\n';
+    gutter.textContent = g;
+    code.style.height = hl.offsetHeight + 'px';
+    code.style.width = hl.offsetWidth + 'px';
+  }
+  function updateCursor() {
+    const before = code.value.slice(0, code.selectionStart).split('\n');
+    $('cursor').textContent = `Ln ${before.length}, Col ${before[before.length - 1].length + 1}`;
+  }
+
+  // ---------- editing keys ----------
+  function replaceRange(start, end, text, selStart, selEnd) {
+    code.setRangeText(text, start, end, 'end');
+    if (selStart !== undefined) code.setSelectionRange(selStart, selEnd ?? selStart);
+    refresh(); updateCursor();
+  }
+  code.addEventListener('keydown', e => {
+    const v = code.value, s = code.selectionStart, en = code.selectionEnd;
+    if ((e.ctrlKey || e.metaKey) && e.key === 'Enter') { e.preventDefault(); run(); return; }
+    if (e.key === 'Tab') {
+      e.preventDefault();
+      const ls = v.lastIndexOf('\n', s - 1) + 1;
+      if (s === en && !e.shiftKey) { replaceRange(s, en, '    '); return; }
+      const le = v.indexOf('\n', en - (en > s && v[en - 1] === '\n' ? 1 : 0)); const blockEnd = le === -1 ? v.length : le;
+      const lines = v.slice(ls, blockEnd).split('\n');
+      const changed = lines.map(l => e.shiftKey ? l.replace(/^ {1,4}/, '') : '    ' + l).join('\n');
+      replaceRange(ls, blockEnd, changed, ls, ls + changed.length);
+      return;
+    }
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      const ls = v.lastIndexOf('\n', s - 1) + 1;
+      const line = v.slice(ls, s);
+      let indent = line.match(/^\s*/)[0];
+      if (/:\s*(#.*)?$/.test(line)) indent += '    ';
+      replaceRange(s, en, '\n' + indent);
+      return;
+    }
+    if (e.key === 'Backspace' && s === en) {
+      const ls = v.lastIndexOf('\n', s - 1) + 1;
+      const before = v.slice(ls, s);
+      if (before.length && /^ +$/.test(before)) {
+        e.preventDefault();
+        const cut = before.length % 4 || 4;
+        replaceRange(s - cut, s, '');
+      }
+    }
+  });
+  code.addEventListener('input', () => { refresh(); updateCursor(); });
+  ['keyup', 'click', 'select'].forEach(ev => code.addEventListener(ev, updateCursor));
+
+
+
+  // ---------- output ----------
+  const pyEmit = (text, kind) => {
+    if (out.querySelector('.placeholder')) out.textContent = '';
+    const last = out.lastChild;
+    if (last && last.nodeType === 1 && last.dataset.kind === kind) last.textContent += text;
+    else {
+      const span = document.createElement('span');
+      span.dataset.kind = kind; if (kind === 'err' || kind === 'in') span.className = kind;
+      span.textContent = text; out.append(span);
+    }
+    out.scrollTop = out.scrollHeight;
+  };
+
+  function renderPlot(json) {
+    const div = document.createElement('div');
+    div.className = 'plot';
+    out.append(div);
+    out.scrollTop = out.scrollHeight;
+    if (!window.Plotly) {
+      div.classList.add('plot-missing');
+      div.textContent = 'This chart could not be drawn because the chart library did not load.';
+      return;
+    }
+    try {
+      const fig = JSON.parse(json);
+      const layout = Object.assign({}, fig.layout || {}, { autosize: true });
+      Plotly.newPlot(div, fig.data || [], layout, { responsive: true, displaylogo: false })
+        .then(() => { out.scrollTop = out.scrollHeight; })
+        .catch(err => { div.classList.add('plot-missing'); div.textContent = 'Chart error: ' + err.message; });
+    } catch (err) {
+      div.classList.add('plot-missing'); div.textContent = 'Chart error: ' + err.message;
+    }
+  }
+
+  function setBusy(text) { status.className = 'busy'; status.textContent = text; }
+  function setReady() { ready = true; runBtn.disabled = false; status.className = 'ready'; status.textContent = 'Python ready'; }
+  function setFail(text) {
+    ready = false; runBtn.disabled = true;
+    status.className = 'fail'; status.textContent = 'Python could not start';
+    out.innerHTML = '';
+    pyEmit(text + '\n', 'err');
+  }
+
+  // ---------- the Python worker ----------
+  const LIMIT = 5; // seconds
+  const WORKER_URL = URL.createObjectURL(new Blob([document.getElementById('worker-src').textContent], { type: 'text/javascript' }));
+  let worker = null, ready = false, timer = null, t0 = 0, clearOnNext = false;
+
+  function startWorker(text) {
+    ready = false; runBtn.disabled = true; setBusy(text);
+    worker = new Worker(WORKER_URL);
+    worker.onmessage = onMessage;
+    worker.onerror = e => { e.preventDefault(); setFail('Python could not start: ' + (e.message || 'unknown error')); };
+  }
+
+  function onMessage(e) {
+    const m = typeof e.data === 'string' ? JSON.parse(e.data) : e.data;
+    switch (m.type) {
+      case 'status': setBusy(m.text); break;
+      case 'ready': setReady(); break;
+      case 'fail': setFail(m.text); break;
+      case 'warn': console.warn(m.text); break;
+      case 'started': t0 = performance.now(); clearTimeout(timer); timer = setTimeout(onTimeout, LIMIT * 1000); break;
+      case 'out': maybeClear(); pyEmit(m.text, m.kind); break;
+      case 'plot': maybeClear(); renderPlot(m.fig); break;
+      case 'done': clearTimeout(timer); maybeClear(); finish(m.state); break;
+    }
+  }
+
+  function maybeClear() { if (clearOnNext) { out.innerHTML = ''; clearOnNext = false; } }
+
+  // A run is a "session": the code snapshot, the answers typed so far, and a fixed random seed.
+  // When the program needs input it stops; after Enter it replays from the top with the answers.
+  let session = null;
+
+  function run() {
+    if (!ready || runBtn.disabled) return;
+    session = { src: code.value, answers: [], seed: Math.floor(Math.random() * 2 ** 31) };
+    timing.textContent = '';
+    out.innerHTML = '';
+    execute();
+  }
+
+  function execute() {
+    runBtn.disabled = true; setBusy('Running…');
+    clearOnNext = true;
+    worker.postMessage({ type: 'run', src: session.src, answers: session.answers.slice(), seed: session.seed });
+  }
+
+  function finish(state) {
+    runBtn.disabled = false;
+    if (state === 'input') {
+      setBusy('Waiting for input…');
+      timing.textContent = 'Type a response and press Enter'; timing.style.color = 'var(--accent)';
+      askForInput();
+      return;
+    }
+    session = null;
+    if (!out.textContent && !out.querySelector('.plot')) { const s = document.createElement('span'); s.className = 'sys'; s.textContent = '(no output)'; out.append(s); }
+    const ok = state === 'done';
+    timing.textContent = (ok ? 'Finished' : 'Stopped with an error') + ` in ${(performance.now() - t0).toFixed(0)} ms`;
+    timing.style.color = ok ? 'var(--ok)' : 'var(--err)';
+    setReady();
+  }
+
+  function onTimeout() {
+    worker.terminate();
+    maybeClear();
+    session = null;
+    pyEmit(`${out.textContent ? '\n' : ''}Stopped: your program ran longer than ${LIMIT} seconds.\n` +
+      'Check for a loop that never ends, such as a while loop whose condition never becomes False.\n', 'err');
+    timing.textContent = 'Stopped after ' + LIMIT + ' seconds'; timing.style.color = 'var(--err)';
+    startWorker('Restarting Python…');
+  }
+
+  function askForInput() {
+    // A plain editable line of text, not a form field, so browser autofill and
+    // password-manager popups leave it alone.
+    const box = document.createElement('span');
+    box.id = 'stdin-line';
+    try { box.contentEditable = 'plaintext-only'; } catch (e) {}
+    if (box.contentEditable !== 'plaintext-only') box.contentEditable = 'true';
+    box.spellcheck = false;
+    for (const [k, v] of Object.entries({ role: 'textbox', 'aria-label': 'Program input', autocorrect: 'off',
+      autocapitalize: 'off', 'data-gramm': 'false', 'data-gramm_editor': 'false', 'data-enable-grammarly': 'false',
+      'data-lpignore': 'true', 'data-1p-ignore': 'true', 'data-form-type': 'other' })) box.setAttribute(k, v);
+    box.addEventListener('paste', e => {
+      e.preventDefault();
+      const text = (e.clipboardData.getData('text/plain') || '').split(/\r?\n/)[0];
+      document.execCommand('insertText', false, text);
+    });
+    out.append(box);
+    out.scrollTop = out.scrollHeight;
+    box.focus({ preventScroll: true });
+    box.addEventListener('keydown', e => {
+      if (e.key !== 'Enter' || !session) return;
+      e.preventDefault();
+      session.answers.push(box.textContent.replace(/\n/g, ''));
+      box.contentEditable = 'false';
+      execute();
+    });
+  }
+  out.addEventListener('click', () => { const b = $('stdin-line'); if (b && b.isContentEditable && !getSelection().toString()) b.focus(); });
+  runBtn.addEventListener('click', run);
+
+  // ---------- boot ----------
+  code.value = '';
+  refresh();
+  startWorker('Loading Python…');
+})();
+</script>
